@@ -89,3 +89,8 @@ if all_records:
     print(f"Total records collected: {len(df)}")
     print(f"Total snowfall (all seasons): {df['snowfall_inch'].sum():.2f} inches")
     print(df.head(10))
+
+    df.to_csv('brighton_snow_data.csv', index=False)
+    print("\nData saved to brighton_snow_data.csv")
+else:
+    print("\nNo data collected!")
