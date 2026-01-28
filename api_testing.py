@@ -6,37 +6,50 @@ from datetime import datetime, timedelta
 from dateutil.relativedelta import relativedelta
 
 # brighton coordinates
-lat = 40.5983
-lon = -111.5827
+lat = 40.5991
+lon = -111.5813
+
+resorts = {
+    'Brighton': {'lat': 40.5983, 'lon': -111.5837},
+    'Solitude': {'lat': 40.6238, 'lon': -111.5975},
+    'Snowbird': {'lat': 40.5810, 'lon': -111.6567},
+    'Alta': {'lat': 40.5889, 'lon': -111.6388},
+    'Deer Valley': {'lat': 40.611, 'lon': -111.4999},
+    'Park City': {'lat': 40.6576, 'lon': -111.5700},
+    'Snowbasin': {'lat': 41.1994, 'lon': -111.8593},
+}
+
+for resort_name, coords in resorts.items():
+    current_year = datetime.now().year
+    weather_data = []
+
+    lat = coords['lat']
+    lon = coords['lon']
+
+    for year_change in range(10):
+        base_year = current_year - year_change
 
 
-current_year = datetime.now().year
-weather_data = []
+        for month_data in [(base_year, 12), (base_year + 1, 1), 
+                    (base_year + 1, 2), (base_year + 1, 3)]:
+            year, month = month_data
+            start_date = datetime(year, month, 1)
 
-for year_change in range(3):
-    base_year = current_year - year_change
+            if start_date > datetime.now():
+                continue
+            end_date = start_date + relativedelta(months=1)
+            
+            if end_date > datetime.now():
+                end_date = datetime.now()
 
+            weather_data.append({
+                'season': f"{base_year}-{base_year + 1}",
+                'month': start_date.strftime('%B %Y'),
+                'start_date': start_date.strftime('%Y-%m-%d'),
+                'end_date': (end_date - relativedelta(days=1)).strftime('%Y-%m-%d')
+            })
 
-    for month_data in [(base_year, 12), (base_year + 1, 1), 
-                (base_year + 1, 2), (base_year + 1, 3)]:
-        year, month = month_data
-        start_date = datetime(year, month, 1)
-
-        if start_date > datetime.now():
-            continue
-        end_date = start_date + relativedelta(months=1)
-        
-        if end_date > datetime.now():
-            end_date = datetime.now()
-
-        weather_data.append({
-            'season': f"{base_year}-{base_year + 1}",
-            'month': start_date.strftime('%B %Y'),
-            'start_date': start_date.strftime('%Y-%m-%d'),
-            'end_date': (end_date - relativedelta(days=1)).strftime('%Y-%m-%d')
-        })
-
-all_records = []
+    all_records = []
 
 for weather in weather_data:
     print(f"Getting {weather['month']} (Season {weather['season']})")
@@ -90,7 +103,10 @@ if all_records:
     print(f"Total snowfall (all seasons): {df['snowfall_inch'].sum():.2f} inches")
     print(df.head(10))
 
-    df.to_csv('brighton_snow_data.csv', index=False)
-    print("\nData saved to brighton_snow_data.csv")
-else:
-    print("\nNo data collected!")
+    resort_summary = df.groupby('resort')['snowfall_inch'].sum().sort_values(ascending=False)
+    print(f"\nTotal snowfall by resort (10 years):")
+    for resort, total in resort_summary.items():
+        print(f"  {resort}: {total:.2f} inches")
+    
+    df.to_csv('all_resorts_snow_data.csv', index=False)
+    print("\nData saved to all_resorts_snow_data.csv")
