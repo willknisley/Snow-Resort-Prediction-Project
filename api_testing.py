@@ -1,73 +1,89 @@
 import requests 
-from datetime import datetime, timedelta
 import pandas as pd
 from scipy.constants import convert_temperature
 import numpy as np
+from datetime import datetime, timedelta
+from dateutil.relativedelta import relativedelta
 
-with open ("api_key.txt", "r") as f:
-    api_key = f.read().strip()
+# brighton coordinates
+lat = 40.5983
+lon = -111.5827
 
-brighton_url = f"http://api.openweathermap.org/geo/1.0/direct?q=Brighton,UT,US&limit=1&appid={api_key}"
-snowbird_url = f"http://api.openweathermap.org/geo/1.0/direct?q=Snowbird,UT,US&limit=1&appid={api_key}"
 
-response = requests.get(brighton_url)
-#response = requests.get(snowbird_url)
+current_year = datetime.now().year
+weather_data = []
 
-if response.status_code == 200:
-    data = response.json()
+for year_change in range(3):
+    base_year = current_year - year_change
 
-    if data:
-        lat = data[0]['lat']
-        lon = data[0]['lon']
-        #lat = 40.5829
-        #lon = -111.6556
 
-        print(f"Latitude: {lat}")
-        print(f"Longitude: {lon}")
+    for month_data in [(base_year, 12), (base_year + 1, 1), 
+                (base_year + 1, 2), (base_year + 1, 3)]:
+        year, month = month_data
+        start_date = datetime(year, month, 1)
 
-        end_time = datetime.now()
-        start_time = end_time - timedelta(days=20)
-
-        start = int(start_time.timestamp())
-        end = int(end_time.timestamp())
+        if start_date > datetime.now():
+            continue
+        end_date = start_date + relativedelta(months=1)
         
-        print(f"Start: {start} ({start_time})")
-        print(f"End: {end} ({end_time})")
 
-        history_url = f"https://history.openweathermap.org/data/2.5/history/city?lat={lat}&lon={lon}&type=hour&start={start}&end={end}&appid={api_key}"
+        weather_data.append({
+            'season': f"{base_year}-{base_year + 1}",
+            'month': start_date.strftime('%B %Y'),
+            'start_date': start_date.strftime('%Y-%m-%d'),
+            'end_date': (end_date - relativedelta(days=1)).strftime('%Y-%m-%d')
+        })
 
-        history_response = requests.get(history_url)
+all_records = []
 
-        if history_response.status_code == 200:
-            history_data = history_response.json()
+for weather in weather_data:
+    print(f"Getting {weather['month']} (Season {weather['season']})")
 
-            records = []
-            for item in history_data['list']:
+
+    url = "https://archive-api.open-meteo.com/v1/archive"
+
+    params = {
+        "latitude": lat,
+        "longitude": lon,
+        "start_date": weather['start_date'],
+        "end_date": weather['end_date'],
+        "hourly": ["snowfall", "snow_depth", "temperature_2m"],
+        "temperature_unit": "fahrenheit",
+        "precipitation_unit": "inch",
+        "timezone": "America/Denver"
+    }
+
+    response = requests.get(url, params=params)
+
+    if response.status_code == 200:
+        data = response.json()
+
+        if 'hourly' in data:
+            hourly = data['hourly']
+            
+            for i in range(len(hourly['time'])):
                 record = {
-                    'timestamp': datetime.fromtimestamp(item['dt']),
-                    'temp_in_f': convert_temperature((item['main']['temp']), 'Kelvin', 'Fahrenheit'),
-                    'feels_like': convert_temperature((item['main']['feels_like']), 'Kelvin', 'Fahrenheit'),
-                    'humidity': item['main']['humidity'],
-                    'temp_min': convert_temperature((item['main']['temp_min']), 'Kelvin', 'Fahrenheit'),
-                    'temp_max': convert_temperature((item['main']['temp_max']), 'Kelvin', 'Fahrenheit'),
-                    'weather_main': item['weather'][0]['main'],
-                    'weather_description': item['weather'][0]['description'],
-                    'snow_1h': item.get('snow', {}).get('1h', 0),  
-                    'snow_3h': item.get('snow', {}).get('3h', 0),  
-                    'rain_1h': item.get('rain', {}).get('1h', 0),  
-                    'rain_3h': item.get('rain', {}).get('3h', 0),  
+                    'timestamp': datetime.fromisoformat(hourly['time'][i]), 
+                    'season': weather['season'],
+                    'month': weather['month'],
+                    'snowfall_inch': hourly['snowfall'][i] if hourly['snowfall'][i] is not None else 0,
+                    'snow_depth_inch': hourly['snow_depth'][i] if hourly['snow_depth'][i] is not None else 0,
+                    'temperature_f': hourly['temperature_2m'][i]
                 }
-                records.append(record)
+                all_records.append(record)
             
-            df = pd.DataFrame(records)
-            print(df.head())
-            
-            print(f"\nTotal snow (1h): {df['snow_1h'].sum()} mm")
-            print(f"Total snow (3h): {df['snow_3h'].sum()} mm")
+            monthly_total = sum(hourly['snowfall'][i] if hourly['snowfall'][i] is not None else 0 
+                              for i in range(len(hourly['snowfall'])))
+            print(f"  Total snowfall: {monthly_total:.2f} inches")
         else:
-            print(f"Error: {history_response.status_code}")
-            print(history_response.text)
-    print(data)
-else:
-    print(f"Error: {response.status_code}")
-    print(response.text)
+            print("  No hourly data available")
+    else:
+        print(f"Error: {response.status_code}")
+        print(response.text)
+
+if all_records:
+    df = pd.DataFrame(all_records)
+    print(f"\n{'='*60}")
+    print(f"Total records collected: {len(df)}")
+    print(f"Total snowfall (all seasons): {df['snowfall_inch'].sum():.2f} inches")
+    print(df.head(10))
