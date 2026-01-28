@@ -5,9 +5,6 @@ import numpy as np
 from datetime import datetime, timedelta
 from dateutil.relativedelta import relativedelta
 
-# brighton coordinates
-lat = 40.5991
-lon = -111.5813
 
 resorts = {
     'Brighton': {'lat': 40.5983, 'lon': -111.5837},
@@ -19,8 +16,11 @@ resorts = {
     'Snowbasin': {'lat': 41.1994, 'lon': -111.8593},
 }
 
+all_records = []
+current_year = datetime.now().year
+
+
 for resort_name, coords in resorts.items():
-    current_year = datetime.now().year
     weather_data = []
 
     lat = coords['lat']
@@ -46,10 +46,8 @@ for resort_name, coords in resorts.items():
                 'season': f"{base_year}-{base_year + 1}",
                 'month': start_date.strftime('%B %Y'),
                 'start_date': start_date.strftime('%Y-%m-%d'),
-                'end_date': (end_date - relativedelta(days=1)).strftime('%Y-%m-%d')
+                'end_date': end_date.strftime('%Y-%m-%d')
             })
-
-    all_records = []
 
 for weather in weather_data:
     print(f"Getting {weather['month']} (Season {weather['season']})")
@@ -78,6 +76,7 @@ for weather in weather_data:
             
             for i in range(len(hourly['time'])):
                 record = {
+                    'resort': resort_name,
                     'timestamp': datetime.fromisoformat(hourly['time'][i]), 
                     'season': weather['season'],
                     'month': weather['month'],
@@ -107,6 +106,13 @@ if all_records:
     print(f"\nTotal snowfall by resort (10 years):")
     for resort, total in resort_summary.items():
         print(f"  {resort}: {total:.2f} inches")
+
+        print(f"\nTotal snowfall by season:")
+    season_summary = df.groupby('season')['snowfall_inch'].sum().sort_values(ascending=False)
+    for season, total in season_summary.head(5).items():
+        print(f"  {season}: {total:.2f} inches")
     
     df.to_csv('all_resorts_snow_data.csv', index=False)
     print("\nData saved to all_resorts_snow_data.csv")
+else:
+    print("\nNo data collected!")
