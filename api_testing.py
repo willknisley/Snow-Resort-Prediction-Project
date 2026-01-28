@@ -26,6 +26,8 @@ for year_change in range(3):
             continue
         end_date = start_date + relativedelta(months=1)
         
+        if end_date > datetime.now():
+            end_date = datetime.now()
 
         weather_data.append({
             'season': f"{base_year}-{base_year + 1}",
